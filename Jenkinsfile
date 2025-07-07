@@ -2,20 +2,20 @@ pipeline {
     agent any
     
     environment {
-        PROJECT_ID = 'your-project-id'
-        IMAGE_NAME = 'backend-nest-test-cmc'
-        REGISTRY = "gcr.io/${PROJECT_ID}/${IMAGE_NAME}"
-        KUBE_CONFIG = credentials('k8s-config') // Ensure you have this credential set up in Jenkins
+        NPM_CONFIG_CACHE= "${WORKSPACE}/.npm"
+        dockerImagePrefix = "us-west1-docker.pkg.dev/lab-agibiz/docker-repository"
+        registry = "https://us-west1-docker.pkg.dev"
+        registryCredentials = "gcp-registry"
     }
     
     stages {
-        stage('Install Dependencies') {
+        stage('Instalacion de depencencias') {
             steps {
                 sh 'npm install'
             }
         }
         
-        stage('Run Tests') {
+        stage('Correr Tests') {
             steps {
                 sh 'npm test'
             }
@@ -30,7 +30,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${REGISTRY}:${env.BUILD_NUMBER}")
+                    docker.build("${registry}:${env.BUILD_NUMBER}")
                 }
             }
         }
@@ -38,33 +38,29 @@ pipeline {
         stage('Push Docker Images') {
             steps {
                 script {
-                    docker.withRegistry('https://gcr.io', 'gcp-credentials') { // Ensure you have GCP credentials set up in Jenkins
-                        docker.image("${REGISTRY}:${env.BUILD_NUMBER}").push()
-                        docker.image("${REGISTRY}:${env.BUILD_NUMBER}").push('latest')
+                    docker.withRegistry("${registry}", registryCredentials ){
+                        sh "docker build -t backend-nest-cmc ."
+                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc"
+                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
                     }
                 }
             }
         }
         
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    // Update the deployment with the new image
-                    sh """
-                        kubectl set image deployment/backend-nest-test-cmc backend-nest-test-cmc=${REGISTRY}:${env.BUILD_NUMBER} --record
-                        kubectl rollout status deployment/backend-nest-test-cmc
-                    """
+       stage ("actualizacion de kubernetes"){
+            agent {
+                docker {
+                    image 'alpine/k8s:1.30.2'
+                    reuseNode true
                 }
             }
-        }
-    }
-    
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed!'
+            steps {
+                withKubeConfig([credentialsId: 'gcp-kubeconfig']){
+                    sh "kubectl -n lab-cmd set image deployments/backend-nest-cmc backend-nest-cmc=${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
+                }
+            }
         }
     }
 }
