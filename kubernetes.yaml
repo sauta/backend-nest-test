@@ -40,7 +40,7 @@ spec:
   ports:
   - protocol: TCP
     port: 80
-    targetPort: 4015
+    targetPort: 4013
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -50,7 +50,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: cmc.devops.cl
+  - host: cmctest.devops.cl
     http:
       paths:
       - path: /
