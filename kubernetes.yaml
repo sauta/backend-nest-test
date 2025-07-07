@@ -1,20 +1,62 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-cmc
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-nest-test-cmc
+  name: backend-nest-cmc
   namespace: lab-cmc
+  labels:
+    app: backend-nest-cmc
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: backend-nest-test-cmc
+      app: backend-nest-cmc
   template:
     metadata:
       labels:
-        app: backend-nest-test-cmc
+        app: backend-nest-cmc
     spec:
       containers:
-      - name: main
-        image: us-west1-docker.pkg.dev/lab-agibiz/docker-repository/backend-nest-test-cmc:latest
-        ports:
-        - containerPort: 3000
+      - name: backend-nest-cmc
+        image: us-west1-docker.pkg.dev/lab-agibiz/docker-repository/backend-nest-cmc
+        imagePullPolicy: Always
+      imagePullSecrets:
+      - name: regcred
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-nest-svc
+  namespace: lab-cmc
+  labels:
+    app: backend-nest-svc
+spec:
+  selector:
+     app: backend-nest-cmc
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 5002
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-backend-nest-cmc
+  namespace: lab-cmc
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cmc.devops.cl
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: backend-nest-svc
+            port:
+              number: 80
