@@ -2,16 +2,26 @@ pipeline {
     agent any
     
     environment {
-        NPM_CONFIG_CACHE= "${WORKSPACE}/.npm"
-        dockerImagePrefix = "us-west1-docker.pkg.dev/lab-agibiz/docker-repository"
-        registry = "https://us-west1-docker.pkg.dev"
-        registryCredentials = "gcp-registry"
+        NPM_CONFIG_CACHE = "${WORKSPACE}/.npm"
+        IMAGE_NAME = 'backend-nest-test-cmc'
+        DOCKER_REGISTRY = "us-west1-docker.pkg.dev"
+        DOCKER_REPO = "lab-agibiz/docker-repository"
+        DOCKER_IMAGE_PREFIX = "${DOCKER_REGISTRY}/${DOCKER_REPO}"
+        REGISTRY_CREDENTIALS = "gcp-registry"
+        KUBE_NAMESPACE = "lab-cmc"  // Asegúrate que coincida con tu namespace
+        KUBE_CONFIG_CREDENTIALS = "gcp-kubeconfig"
     }
     
     stages {
-        stage('Instalacion de depencencias') {
+        stage('Checkout Code') {
             steps {
-                sh 'npm install'
+                checkout scm
+            }
+        }
+        
+        stage('Instalación de dependencias') {
+            steps {
+                sh 'npm ci'  // Mejor usar 'npm ci' para builds consistentes
             }
         }
         
@@ -21,7 +31,7 @@ pipeline {
             }
         }
         
-        stage('Build') {
+        stage('Build Application') {
             steps {
                 sh 'npm run build'
             }
@@ -30,7 +40,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${registry}:${env.BUILD_NUMBER}")
+                    // Construir con el nombre completo desde el inicio
+                    docker.build("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}")
                 }
             }
         }
@@ -38,18 +49,16 @@ pipeline {
         stage('Push Docker Images') {
             steps {
                 script {
-                    docker.withRegistry("${registry}", registryCredentials ){
-                        sh "docker build -t backend-nest-cmc ."
-                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc"
-                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
-                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc"
-                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", REGISTRY_CREDENTIALS) {
+                        // Simplificar el proceso de tagging y push
+                        docker.image("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}").push()
+                        docker.image("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}").push('latest')
                     }
                 }
             }
         }
         
-       stage ("actualizacion de kubernetes"){
+        stage('Actualización de Kubernetes') {
             agent {
                 docker {
                     image 'alpine/k8s:1.30.2'
@@ -57,10 +66,32 @@ pipeline {
                 }
             }
             steps {
-                withKubeConfig([credentialsId: 'gcp-kubeconfig']){
-                    sh "kubectl -n lab-cmd set image deployments/backend-nest-cmc backend-nest-cmc=${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
+                withKubeConfig([credentialsId: KUBE_CONFIG_CREDENTIALS]) {
+                    script {
+                        // Comando más robusto para actualizar la imagen
+                        sh """
+                            kubectl -n ${KUBE_NAMESPACE} set image deployment/backend-nest-cmc \
+                            backend-nest-cmc=${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER} \
+                            --record
+                            
+                            kubectl -n ${KUBE_NAMESPACE} rollout status deployment/backend-nest-cmc
+                            
+                            # Verificación adicional
+                            kubectl -n ${KUBE_NAMESPACE} get pods
+                        """
+                    }
                 }
             }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Pipeline ejecutado exitosamente!'
+            echo "Imagen desplegada: ${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}"
+        }
+        failure {
+            echo 'Pipeline falló! Revisar logs para detalles.'
         }
     }
 }
