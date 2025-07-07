@@ -44,8 +44,8 @@ pipeline {
                     docker.withRegistry("${registry}", registryCredentials ){
                         sh "docker build -t backend-nest-test-cmc ."
                         sh "docker tag backend-nest-test-cmc ${dockerImagePrefix}/backend-nest-test-cmc"
-                        sh "docker tag backend-nest-test-cmc ${dockerImagePrefix}/backend-nest-test-cmc:${BUILD_NUMBER}"
                         sh "docker push ${dockerImagePrefix}/backend-nest-test-cmc"
+                        sh "docker tag backend-nest-test-cmc ${dockerImagePrefix}/backend-nest-test-cmc:${BUILD_NUMBER}"
                         sh "docker push ${dockerImagePrefix}/backend-nest-test-cmc:${BUILD_NUMBER}"
                     }
                 }
