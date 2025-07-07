@@ -6,23 +6,23 @@ metadata:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-nest-cmc
+  name: backend-nest-test-cmc
   namespace: lab-cmc
   labels:
-    app: backend-nest-cmc
+    app: backend-nest-test-cmc
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: backend-nest-cmc
+      app: backend-nest-test-cmc
   template:
     metadata:
       labels:
-        app: backend-nest-cmc
+        app: backend-nest-test-cmc
     spec:
       containers:
-      - name: backend-nest-cmc
-        image: us-west1-docker.pkg.dev/lab-agibiz/docker-repository/backend-nest-cmc
+      - name: backend-nest-test-cmc
+        image: us-west1-docker.pkg.dev/lab-agibiz/docker-repository/backend-nest-test-cmc
         imagePullPolicy: Always
       imagePullSecrets:
       - name: regcred
@@ -36,7 +36,7 @@ metadata:
     app: backend-nest-svc
 spec:
   selector:
-     app: backend-nest-cmc
+     app: backend-nest-test-cmc
   ports:
   - protocol: TCP
     port: 80
@@ -45,7 +45,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ingress-backend-nest-cmc
+  name: ingress-backend-nest-test-cmc
   namespace: lab-cmc
 spec:
   ingressClassName: nginx
