@@ -42,11 +42,11 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry("${registry}", registryCredentials ){
-                        sh "docker build -t backend-nest-cmd ."
-                        sh "docker tag backend-nest-cmd ${dockerImagePrefix}/backend-nest-cmd"
-                        sh "docker tag backend-nest-cmd ${dockerImagePrefix}/backend-nest-cmd:${BUILD_NUMBER}"
-                        sh "docker push ${dockerImagePrefix}/backend-nest-cmd"
-                        sh "docker push ${dockerImagePrefix}/backend-nest-cmd:${BUILD_NUMBER}"
+                        sh "docker build -t backend-nest-cmc ."
+                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc"
+                        sh "docker tag backend-nest-cmc ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmc:${BUILD_NUMBER}"
                     }
                 }
             }
