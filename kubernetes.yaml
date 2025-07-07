@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab-cmc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-nest-test-cmc
+  namespace: lab-cmc
+  labels:
+    app: backend-nest-test-cmc
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-nest-test-cmc
+  template:
+    metadata:
+      labels:
+        app: backend-nest-test-cmc
+    spec:
+      containers:
+      - name: backend-nest-test-cmc
+        image: us-west1-docker.pkg.dev/lab-agibiz/docker-repository/backend-nest-test-cmc
+        imagePullPolicy: Always
