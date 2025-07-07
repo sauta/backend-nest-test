@@ -1,64 +1,57 @@
 pipeline {
     agent any
-    
-    environment {
-        NPM_CONFIG_CACHE = "${WORKSPACE}/.npm"
-        IMAGE_NAME = 'backend-nest-test-cmc'
-        DOCKER_REGISTRY = "us-west1-docker.pkg.dev"
-        DOCKER_REPO = "lab-agibiz/docker-repository"
-        DOCKER_IMAGE_PREFIX = "${DOCKER_REGISTRY}/${DOCKER_REPO}"
-        REGISTRY_CREDENTIALS = "gcp-registry"
-        KUBE_NAMESPACE = "lab-cmc"  // Asegúrate que coincida con tu namespace
-        KUBE_CONFIG_CREDENTIALS = "gcp-kubeconfig"
+    // escenarios -> escenario -> pasos
+    environment{
+        NPM_CONFIG_CACHE= "${WORKSPACE}/.npm"
+        dockerImagePrefix = "us-west1-docker.pkg.dev/lab-agibiz/docker-repository"
+        registry = "https://us-west1-docker.pkg.dev"
+        registryCredentials = "gcp-registry"
     }
-    
-    stages {
-        stage('Checkout Code') {
+    stages{
+        stage ("Inicio ultima tarea") {
             steps {
-                checkout scm
+                sh 'echo "comenzado mi pipeline"'
             }
         }
-        
-        stage('Instalación de dependencias') {
-            steps {
-                sh 'npm ci'  // Mejor usar 'npm ci' para builds consistentes
-            }
-        }
-        
-        stage('Correr Tests') {
-            steps {
-                sh 'npm test'
-            }
-        }
-        
-        stage('Build Application') {
-            steps {
-                sh 'npm run build'
-            }
-        }
-        
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    // Construir con el nombre completo desde el inicio
-                    docker.build("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}")
+        stage ("proceso de build y test") {
+            agent {
+                docker {
+                    image 'node:22'
+                    reuseNode true
                 }
             }
-        }
-        
-        stage('Push Docker Images') {
-            steps {
-                script {
-                    docker.withRegistry("https://${DOCKER_REGISTRY}", REGISTRY_CREDENTIALS) {
-                        // Simplificar el proceso de tagging y push
-                        docker.image("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}").push()
-                        docker.image("${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}").push('latest')
+            stages {
+                stage("instalacion de dependencias"){
+                    steps {
+                        sh 'npm ci'
+                    }
+                }
+                stage("ejecucion de pruebas"){
+                    steps {
+                        sh 'npm run test:cov'
+                    }
+                }
+                stage("construccion de la aplicacion"){
+                    steps {
+                        sh 'npm run build'
                     }
                 }
             }
         }
-        
-        stage('Actualización de Kubernetes') {
+        stage ("build y push de imagen docker"){
+            steps {
+                script {
+                    docker.withRegistry("${registry}", registryCredentials ){
+                        sh "docker build -t backend-nest-cmd ."
+                        sh "docker tag backend-nest-cmd ${dockerImagePrefix}/backend-nest-cmd"
+                        sh "docker tag backend-nest-cmd ${dockerImagePrefix}/backend-nest-cmd:${BUILD_NUMBER}"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmd"
+                        sh "docker push ${dockerImagePrefix}/backend-nest-cmd:${BUILD_NUMBER}"
+                    }
+                }
+            }
+        }
+        stage ("actualizacion de kubernetes"){
             agent {
                 docker {
                     image 'alpine/k8s:1.30.2'
@@ -66,32 +59,21 @@ pipeline {
                 }
             }
             steps {
-                withKubeConfig([credentialsId: KUBE_CONFIG_CREDENTIALS]) {
-                    script {
-                        // Comando más robusto para actualizar la imagen
-                        sh """
-                            kubectl -n ${KUBE_NAMESPACE} set image deployment/backend-nest-cmc \
-                            backend-nest-cmc=${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER} \
-                            --record
-                            
-                            kubectl -n ${KUBE_NAMESPACE} rollout status deployment/backend-nest-cmc
-                            
-                            # Verificación adicional
-                            kubectl -n ${KUBE_NAMESPACE} get pods
-                        """
-                    }
+                withKubeConfig([credentialsId: 'gcp-kubeconfig']){
+                    sh "kubectl -n lab-cmd set image deployments/backend-nest-cmd backend-nest-cmd=${dockerImagePrefix}/backend-nest-cmd:${BUILD_NUMBER}"
                 }
             }
         }
     }
-    
     post {
-        success {
-            echo 'Pipeline ejecutado exitosamente!'
-            echo "Imagen desplegada: ${DOCKER_IMAGE_PREFIX}/${IMAGE_NAME}:${env.BUILD_NUMBER}"
-        }
-        failure {
-            echo 'Pipeline falló! Revisar logs para detalles.'
+        always {
+            script {
+                def currentBuild = currentBuild.rawBuild
+                def buildUrl = "${env.BUILD_URL}"
+                def buildNumber = "${env.BUILD_NUMBER}"
+                def buildStatus = currentBuild.result ?: 'SUCCESS'
+                sh "echo 'Build ${buildNumber} completed with status: ${buildStatus}. View details at: ${buildUrl}'"
+            }
         }
     }
 }
