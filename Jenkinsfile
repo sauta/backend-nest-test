@@ -65,15 +65,4 @@ pipeline {
             }
         }
     }
-    post {
-        always {
-            script {
-                def currentBuild = currentBuild.rawBuild
-                def buildUrl = "${env.BUILD_URL}"
-                def buildNumber = "${env.BUILD_NUMBER}"
-                def buildStatus = currentBuild.result ?: 'SUCCESS'
-                sh "echo 'Build ${buildNumber} completed with status: ${buildStatus}. View details at: ${buildUrl}'"
-            }
-        }
-    }
 }
