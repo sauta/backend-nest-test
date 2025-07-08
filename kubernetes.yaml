@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: lab-test-cmc
+  namespace: lab-test-cmc
 ---
 apiVersion: apps/v1
 kind: Deployment
